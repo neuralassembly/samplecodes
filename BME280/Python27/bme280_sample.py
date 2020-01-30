@@ -1,12 +1,24 @@
 #coding: utf-8
+# 内容: 温湿度・気圧センサ
+# チップ: BME280搭載モジュール
+# 型番など: スイッチサイエンス、秋月電子通商などで入手可能
+#
+# 接続: I2Cデバイス - Raspberry Pi
+# 1 VDD - 3.3V
+# 2 GND - GND
+# 3 CSB - 3.3V
+# 4 SDI - I2C SDA
+# 5 SDO - GND
+# 6 SCK - I2C SCL
 
-from smbus2 import SMBus
+import smbus
 import time
+from time import sleep
 
 bus_number  = 1
 i2c_address = 0x76
 
-bus = SMBus(bus_number)
+bus = smbus.SMBus(bus_number)
 
 digT = []
 digP = []
@@ -66,9 +78,11 @@ def readData():
 	temp_raw = (data[3] << 12) | (data[4] << 4) | (data[5] >> 4)
 	hum_raw  = (data[6] << 8)  |  data[7]
 	
-	compensate_T(temp_raw)
-	compensate_P(pres_raw)
-	compensate_H(hum_raw)
+	temperature = compensate_T(temp_raw)
+	pressure = compensate_P(pres_raw)
+	humidity = compensate_H(hum_raw)
+
+	print('{0:3.2f} [degree], {1:5.2f} [hPa], {2:3.2f} [%]'.format(temperature, pressure, humidity))
 
 def compensate_P(adc_P):
 	global  t_fine
@@ -92,7 +106,7 @@ def compensate_P(adc_P):
 	v2 = ((pressure / 4.0) * digP[7]) / 8192.0
 	pressure = pressure + ((v1 + v2 + digP[6]) / 16.0)  
 
-	print "pressure : %7.2f hPa" % (pressure/100)
+	return pressure/100
 
 def compensate_T(adc_T):
 	global t_fine
@@ -100,7 +114,8 @@ def compensate_T(adc_T):
 	v2 = (adc_T / 131072.0 - digT[0] / 8192.0) * (adc_T / 131072.0 - digT[0] / 8192.0) * digT[2]
 	t_fine = v1 + v2
 	temperature = t_fine / 5120.0
-	print "temp : %-6.2f ℃" % (temperature) 
+
+	return temperature
 
 def compensate_H(adc_H):
 	global t_fine
@@ -114,8 +129,8 @@ def compensate_H(adc_H):
 		var_h = 100.0
 	elif var_h < 0.0:
 		var_h = 0.0
-	print "hum : %6.2f ％" % (var_h)
 
+	return var_h
 
 def setup():
 	osrs_t = 1			#Temperature oversampling x 1
@@ -141,11 +156,10 @@ get_calib_param()
 
 if __name__ == '__main__':
 	try:
-		readData()
+		while True:
+			readData()
+			sleep(1)
+
 	except KeyboardInterrupt:
 		pass
-
-
-
-
 
